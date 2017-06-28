@@ -347,7 +347,10 @@ MATCHER_P2(DispatchMatcher, pid, method, "")
   const DispatchEvent& event = ::std::get<0>(arg);
   return (testing::Matcher<UPID>(pid).Matches(event.pid) &&
           event.functionType.isSome() &&
-          *event.functionType.get() == typeid(method));
+          *event.functionType.get() == typeid(method) &&
+          event.functionPointer.isSome() &&
+          testing::Matcher<std::string>(internal::canonicalize(method))
+          .Matches(event.functionPointer.get()));
 }
 
 
