@@ -148,6 +148,7 @@ class DispatchProcess : public Process<DispatchProcess>
 public:
   MOCK_METHOD0(func0, void());
   MOCK_METHOD1(func1, bool(bool));
+  MOCK_METHOD1(func1_same_signature, bool(bool));
   MOCK_METHOD1(func2, Future<bool>(bool));
   MOCK_METHOD1(func3, int(int));
   MOCK_METHOD2(func4, Future<bool>(bool, int));
@@ -181,6 +182,39 @@ TEST(ProcessTest, THREADSAFE_Dispatch)
   future = dispatch(pid, &DispatchProcess::func2, true);
 
   EXPECT_TRUE(future.get());
+
+  terminate(pid);
+  wait(pid);
+}
+
+
+// Verifies that FUTURE_DISPATCH with func1_same_signature() won't be triggered
+// after dispatching a func1(), which has the same signature.
+TEST(ProcessTest, THREADSAFE_DispatchMatch)
+{
+  DispatchProcess process;
+
+  PID<DispatchProcess> pid = spawn(&process);
+
+  EXPECT_CALL(process, func1(_))
+    .WillOnce(ReturnArg<0>());
+
+  Future<Nothing> future = FUTURE_DISPATCH(
+      pid,
+      &DispatchProcess::func1_same_signature);
+
+  EXPECT_CALL(process, func1_same_signature(_))
+    .WillOnce(ReturnArg<0>());
+
+  Future<bool> f = dispatch(pid, &DispatchProcess::func1, true);
+
+  AWAIT_READY(f);
+
+  ASSERT_FALSE(future.isReady());
+
+  dispatch(pid, &DispatchProcess::func1_same_signature, true);
+
+  AWAIT_READY(future);
 
   terminate(pid);
   wait(pid);
