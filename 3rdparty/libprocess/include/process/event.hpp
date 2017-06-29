@@ -151,7 +151,7 @@ struct DispatchEvent : Event
       const UPID& _pid,
       const std::shared_ptr<lambda::function<void(ProcessBase*)>>& _f,
       const Option<const std::type_info*>& _functionType,
-      const Option<std::string>& _functionPointer)
+      const Option<std::function<std::string()>>& _functionPointer)
     : pid(_pid),
       f(_f),
       functionType(_functionType),
@@ -176,9 +176,7 @@ struct DispatchEvent : Event
   // not applicable). Note that we use a byte representation because a
   // pointer to a member function is not actually a pointer, but
   // instead a POD.
-  //
-  // TODO(benh): Perform canonicalization lazily.
-  const Option<std::string> functionPointer;
+  const Option<std::function<std::string()>> functionPointer;
 
 private:
   // Not copyable, not assignable.

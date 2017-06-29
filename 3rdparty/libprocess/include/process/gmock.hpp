@@ -350,7 +350,7 @@ MATCHER_P2(DispatchMatcher, pid, method, "")
           *event.functionType.get() == typeid(method) &&
           event.functionPointer.isSome() &&
           testing::Matcher<std::string>(internal::canonicalize(method))
-          .Matches(event.functionPointer.get()));
+          .Matches(event.functionPointer.get()()));
 }
 
 
