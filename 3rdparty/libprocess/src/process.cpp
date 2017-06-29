@@ -4178,7 +4178,7 @@ void dispatch(
     const UPID& pid,
     const std::shared_ptr<lambda::function<void(ProcessBase*)>>& f,
     const Option<const std::type_info*>& functionType,
-    const Option<std::string>& functionPointer)
+    const Option<std::function<std::string()>>& functionPointer)
 {
   process::initialize();
 
