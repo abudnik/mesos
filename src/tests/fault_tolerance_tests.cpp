@@ -540,6 +540,8 @@ TEST_F(FaultToleranceTest, SchedulerReregisterAfterFailoverTimeout)
   ASSERT_TRUE(process::inject::exited(
       frameworkRegisteredMessage->to, master.get()->pid));
 
+  os::sleep(Seconds(2));
+
   // Wait until master schedules the framework for removal.
   AWAIT_READY(deactivateFramework);
 
