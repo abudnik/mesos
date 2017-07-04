@@ -23,6 +23,7 @@
 #include <stout/exit.hpp>
 #include <stout/nothing.hpp>
 #include <stout/synchronized.hpp>
+#include <stout/base64.hpp>
 
 
 #define FUTURE_MESSAGE(name, from, to)          \
@@ -345,12 +346,27 @@ MATCHER_P4(UnionMessageMatcher, message, unionType, from, to, "")
 MATCHER_P2(DispatchMatcher, pid, method, "")
 {
   const DispatchEvent& event = ::std::get<0>(arg);
-  return (testing::Matcher<UPID>(pid).Matches(event.pid) &&
+
+  const bool ret = (testing::Matcher<UPID>(pid).Matches(event.pid) &&
           event.functionType.isSome() &&
           *event.functionType.get() == typeid(method) &&
           event.functionPointer.isSome() &&
           testing::Matcher<std::string>(internal::canonicalize(method))
           .Matches(event.functionPointer.get()));
+
+  LOG(WARNING)
+    << "DispatchMatcher: " << ret << ": arg.type_name="
+    << typeid(method).name()
+    << "; event.type_name="
+    << (event.functionType.isSome() ? event.functionType.get()->name() : "_")
+    << "; arg=(_, "
+    << base64::encode(internal::canonicalize(method)) << "), event=("
+    << static_cast<std::string>(event.pid) << ", "
+    << (event.functionPointer.isSome() ?
+        base64::encode(event.functionPointer.get()) : "_")
+    << ")";
+
+  return ret;
 }
 
 
