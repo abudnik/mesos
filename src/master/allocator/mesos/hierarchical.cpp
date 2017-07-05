@@ -37,6 +37,7 @@
 #include <stout/hashset.hpp>
 #include <stout/stopwatch.hpp>
 #include <stout/stringify.hpp>
+#include <stout/base64.hpp>
 
 #include "common/protobuf_utils.hpp"
 
@@ -386,6 +387,36 @@ void HierarchicalAllocatorProcess::deactivateFramework(
 {
   CHECK(initialized);
   CHECK(frameworks.contains(frameworkId));
+
+  LOG(WARNING)
+    << "test: &HierarchicalAllocatorProcess::deactivateFramework= "
+    << base64::encode(process::internal::canonicalize(
+      &HierarchicalAllocatorProcess::deactivateFramework));
+
+  LOG(WARNING)
+    << "test: &MesosAllocatorProcess::deactivateFramework= "
+    << base64::encode(process::internal::canonicalize(
+      &MesosAllocatorProcess::deactivateFramework));
+
+  LOG(WARNING)
+    << "test: &HierarchicalAllocatorProcess::removeFramework= "
+    << base64::encode(process::internal::canonicalize(
+      &HierarchicalAllocatorProcess::removeFramework));
+
+  LOG(WARNING)
+    << "test: &MesosAllocatorProcess::removeFramework= "
+    << base64::encode(process::internal::canonicalize(
+      &MesosAllocatorProcess::removeFramework));
+
+  LOG(WARNING)
+    << "test: &HierarchicalAllocatorProcess::activateFramework= "
+    << base64::encode(process::internal::canonicalize(
+      &HierarchicalAllocatorProcess::activateFramework));
+
+  LOG(WARNING)
+    << "test: &MesosAllocatorProcess::activateFramework= "
+    << base64::encode(process::internal::canonicalize(
+      &MesosAllocatorProcess::activateFramework));
 
   Framework& framework = frameworks.at(frameworkId);
 
