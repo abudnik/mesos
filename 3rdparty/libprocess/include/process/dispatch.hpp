@@ -64,7 +64,8 @@ namespace internal {
 void dispatch(
     const UPID& pid,
     const std::shared_ptr<std::function<void(ProcessBase*)>>& f,
-    const Option<const std::type_info*>& functionType = None());
+    const Option<const std::type_info*>& functionType = None(),
+    const Option<MethodWrapperBase *>& methodWrapper = None());
 
 
 // NOTE: This struct is used by the public `dispatch(const UPID& pid, F&& f)`
@@ -165,7 +166,9 @@ void dispatch(const PID<T>& pid, void (T::*method)())
             (t->*method)();
           }));
 
-  internal::dispatch(pid, f, &typeid(method));
+  auto methodWrapper = new MethodWrapper<decltype(method)>(method);
+
+  internal::dispatch(pid, f, &typeid(method), methodWrapper);
 }
 
 template <typename T>
@@ -201,7 +204,9 @@ void dispatch(const Process<T>* process, void (T::*method)())
               (t->*method)(ENUM_PARAMS(N, a));                          \
             }));                                                        \
                                                                         \
-    internal::dispatch(pid, f, &typeid(method));                        \
+    auto methodWrapper = new MethodWrapper<decltype(method)>(method);   \
+                                                                        \
+    internal::dispatch(pid, f, &typeid(method), methodWrapper);         \
   }                                                                     \
                                                                         \
   template <typename T,                                                 \
@@ -246,7 +251,9 @@ Future<R> dispatch(const PID<T>& pid, Future<R> (T::*method)())
             promise->associate((t->*method)());
           }));
 
-  internal::dispatch(pid, f, &typeid(method));
+  auto methodWrapper = new MethodWrapper<decltype(method)>(method);
+
+  internal::dispatch(pid, f, &typeid(method), methodWrapper);
 
   return promise->future();
 }
@@ -284,7 +291,9 @@ Future<R> dispatch(const Process<T>* process, Future<R> (T::*method)())
               promise->associate((t->*method)(ENUM_PARAMS(N, a)));      \
             }));                                                        \
                                                                         \
-    internal::dispatch(pid, f, &typeid(method));                        \
+    auto methodWrapper = new MethodWrapper<decltype(method)>(method);   \
+                                                                        \
+    internal::dispatch(pid, f, &typeid(method), methodWrapper);         \
                                                                         \
     return promise->future();                                           \
   }                                                                     \
@@ -333,7 +342,9 @@ Future<R> dispatch(const PID<T>& pid, R (T::*method)())
             promise->set((t->*method)());
           }));
 
-  internal::dispatch(pid, f, &typeid(method));
+  auto methodWrapper = new MethodWrapper<decltype(method)>(method);
+
+  internal::dispatch(pid, f, &typeid(method), methodWrapper);
 
   return promise->future();
 }
@@ -371,7 +382,9 @@ Future<R> dispatch(const Process<T>* process, R (T::*method)())
               promise->set((t->*method)(ENUM_PARAMS(N, a)));            \
             }));                                                        \
                                                                         \
-    internal::dispatch(pid, f, &typeid(method));                        \
+    auto methodWrapper = new MethodWrapper<decltype(method)>(method);   \
+                                                                        \
+    internal::dispatch(pid, f, &typeid(method), methodWrapper);         \
                                                                         \
     return promise->future();                                           \
   }                                                                     \

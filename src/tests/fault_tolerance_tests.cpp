@@ -63,6 +63,8 @@
 
 using namespace mesos::internal::protobuf;
 
+using mesos::internal::master::allocator::MesosAllocatorProcess;
+
 using mesos::internal::master::Master;
 
 using mesos::internal::scheduler::DEFAULT_REGISTRATION_BACKOFF_FACTOR;

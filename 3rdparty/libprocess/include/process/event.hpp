@@ -145,15 +145,33 @@ private:
 };
 
 
+struct MethodWrapperBase
+{
+  virtual ~MethodWrapperBase() {}
+};
+
+
+template <typename Method>
+struct MethodWrapper : MethodWrapperBase
+{
+  explicit MethodWrapper(Method _method)
+    : method(_method) {}
+
+  Method method;
+};
+
+
 struct DispatchEvent : Event
 {
   DispatchEvent(
       const UPID& _pid,
       const std::shared_ptr<lambda::function<void(ProcessBase*)>>& _f,
-      const Option<const std::type_info*>& _functionType)
+      const Option<const std::type_info*>& _functionType,
+      const Option<MethodWrapperBase *>& _methodWrapper)
     : pid(_pid),
       f(_f),
-      functionType(_functionType)
+      functionType(_functionType),
+      methodWrapper(_methodWrapper)
   {}
 
   virtual void visit(EventVisitor* visitor) const
@@ -168,6 +186,8 @@ struct DispatchEvent : Event
   const std::shared_ptr<lambda::function<void(ProcessBase*)>> f;
 
   const Option<const std::type_info*> functionType;
+
+  const Option<MethodWrapperBase *> methodWrapper;
 
 private:
   // Not copyable, not assignable.

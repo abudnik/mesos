@@ -345,9 +345,19 @@ MATCHER_P4(UnionMessageMatcher, message, unionType, from, to, "")
 MATCHER_P2(DispatchMatcher, pid, method, "")
 {
   const DispatchEvent& event = ::std::get<0>(arg);
+  bool matchedMethod = false;
+  if (event.methodWrapper.isSome()) {
+    auto methodWrapper =
+      dynamic_cast<const MethodWrapper<decltype(method)> *>(
+          event.methodWrapper.get());
+    if (methodWrapper && methodWrapper->method == method) {
+      matchedMethod = true;
+    }
+  }
   return (testing::Matcher<UPID>(pid).Matches(event.pid) &&
           event.functionType.isSome() &&
-          *event.functionType.get() == typeid(method));
+          *event.functionType.get() == typeid(method) &&
+          matchedMethod);
 }
 
 
