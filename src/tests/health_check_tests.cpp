@@ -557,15 +557,6 @@ TEST_F_TEMP_DISABLED_ON_WINDOWS(HealthCheckTest, ROOT_DOCKER_DockerHealthyTask)
   Shared<Docker> docker(new MockDocker(
       tests::flags.docker, tests::flags.docker_socket));
 
-  Try<Nothing> validateResult = docker->validateVersion(Version(1, 3, 0));
-  ASSERT_SOME(validateResult)
-    << "-------------------------------------------------------------\n"
-    << "We cannot run this test because of 'docker exec' command \n"
-    << "require docker version greater than '1.3.0'. You won't be \n"
-    << "able to use the docker exec method, but feel free to disable\n"
-    << "this test.\n"
-    << "-------------------------------------------------------------";
-
   Try<Owned<cluster::Master>> master = StartMaster();
   ASSERT_SOME(master);
 
@@ -829,15 +820,6 @@ TEST_F_TEMP_DISABLED_ON_WINDOWS(
 {
   Shared<Docker> docker(new MockDocker(
       tests::flags.docker, tests::flags.docker_socket));
-
-  Try<Nothing> validateResult = docker->validateVersion(Version(1, 3, 0));
-  ASSERT_SOME(validateResult)
-    << "-------------------------------------------------------------\n"
-    << "We cannot run this test because of 'docker exec' command \n"
-    << "require docker version greater than '1.3.0'. You won't be \n"
-    << "able to use the docker exec method, but feel free to disable\n"
-    << "this test.\n"
-    << "-------------------------------------------------------------";
 
   Try<Owned<cluster::Master>> master = StartMaster();
   ASSERT_SOME(master);
@@ -1130,6 +1112,128 @@ TEST_F(HealthCheckTest, EnvironmentSetup)
 
   driver.stop();
   driver.join();
+}
+
+
+// This test creates a healthy task that uses Docker executor, then
+// verifies that environment variables could be handled successfully
+// in the health check command.
+TEST_F(HealthCheckTest, ROOT_DOCKER_DockerEnvironmentSetup)
+{
+  Shared<Docker> docker(new MockDocker(
+      tests::flags.docker, tests::flags.docker_socket));
+
+  Try<Owned<cluster::Master>> master = StartMaster();
+  ASSERT_SOME(master);
+
+  slave::Flags agentFlags = CreateSlaveFlags();
+
+  Fetcher fetcher(agentFlags);
+
+  Try<ContainerLogger*> logger =
+    ContainerLogger::create(agentFlags.container_logger);
+  ASSERT_SOME(logger);
+
+  MockDockerContainerizer containerizer(
+      agentFlags,
+      &fetcher,
+      Owned<ContainerLogger>(logger.get()),
+      docker);
+
+  Owned<MasterDetector> detector = master.get()->createDetector();
+  Try<Owned<cluster::Slave>> agent =
+    StartSlave(detector.get(), &containerizer, agentFlags);
+  ASSERT_SOME(agent);
+
+  MockScheduler sched;
+  MesosSchedulerDriver driver(
+    &sched, DEFAULT_FRAMEWORK_INFO, master.get()->pid, DEFAULT_CREDENTIAL);
+
+  EXPECT_CALL(sched, registered(&driver, _, _));
+
+  Future<vector<Offer>> offers;
+  EXPECT_CALL(sched, resourceOffers(&driver, _))
+    .WillOnce(FutureArg<1>(&offers))
+    .WillRepeatedly(Return()); // Ignore subsequent offers.
+
+  driver.start();
+
+  AWAIT_READY(offers);
+  EXPECT_NE(0u, offers.get().size());
+
+  TaskInfo task = createTask(offers.get()[0], "sleep 120");
+
+  // TODO(tnachen): Use local image to test if possible.
+  ContainerInfo containerInfo;
+  containerInfo.set_type(ContainerInfo::DOCKER);
+  containerInfo.mutable_docker()->set_image("alpine");
+
+  task.mutable_container()->CopyFrom(containerInfo);
+
+  CommandInfo healthCommand;
+  healthCommand.set_value("test \"$FOO\" = \"bar\"");
+
+  Environment::Variable* variable =
+    healthCommand.mutable_environment()->mutable_variables()->Add();
+
+  variable->set_name("FOO");
+  variable->set_value("bar");
+
+  HealthCheck healthCheck;
+  healthCheck.set_type(HealthCheck::COMMAND);
+  healthCheck.mutable_command()->CopyFrom(healthCommand);
+  healthCheck.set_delay_seconds(0);
+  healthCheck.set_interval_seconds(0);
+
+  task.mutable_health_check()->CopyFrom(healthCheck);
+
+  Future<ContainerID> containerId;
+  EXPECT_CALL(containerizer, launch(_, _, _, _))
+    .WillOnce(DoAll(FutureArg<0>(&containerId),
+                    Invoke(&containerizer,
+                           &MockDockerContainerizer::_launch)));
+
+  Future<TaskStatus> statusRunning;
+  Future<TaskStatus> statusHealthy;
+
+  EXPECT_CALL(sched, statusUpdate(&driver, _))
+    .WillOnce(FutureArg<1>(&statusRunning))
+    .WillOnce(FutureArg<1>(&statusHealthy))
+    .WillRepeatedly(Return()); // Ignore subsequent updates.
+
+  driver.launchTasks(offers.get()[0].id(), {task});
+
+  AWAIT_READY(containerId);
+
+  AWAIT_READY(statusRunning);
+  EXPECT_EQ(TASK_RUNNING, statusRunning.get().state());
+
+  AWAIT_READY(statusHealthy);
+  EXPECT_EQ(TASK_RUNNING, statusHealthy.get().state());
+  EXPECT_TRUE(statusHealthy.get().has_healthy());
+  EXPECT_TRUE(statusHealthy.get().healthy());
+
+  Future<Option<ContainerTermination>> termination =
+    containerizer.wait(containerId.get());
+
+  driver.stop();
+  driver.join();
+
+  AWAIT_READY(termination);
+  EXPECT_SOME(termination.get());
+
+  agent.get()->terminate();
+  agent->reset();
+
+  Future<std::list<Docker::Container>> containers =
+    docker->ps(true, slave::DOCKER_NAME_PREFIX);
+
+  AWAIT_READY(containers);
+
+  // Clean up all mesos launched docker containers.
+  foreach (const Docker::Container& container, containers.get()) {
+    AWAIT_READY_FOR(docker->rm(container.id, true), Seconds(30));
+  }
 }
 
 

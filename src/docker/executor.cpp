@@ -17,6 +17,7 @@
 #include <stdio.h>
 
 #include <map>
+#include <set>
 #include <string>
 
 #include <mesos/executor.hpp>
@@ -56,6 +57,10 @@
 
 #include "slave/constants.hpp"
 
+#ifdef __linux__
+#include "linux/ns.hpp"
+#endif
+
 using namespace mesos;
 using namespace process;
 
@@ -63,6 +68,7 @@ using std::cerr;
 using std::cout;
 using std::endl;
 using std::map;
+using std::set;
 using std::string;
 using std::vector;
 
@@ -586,60 +592,30 @@ private:
       return;
     }
 
-    HealthCheck healthCheck = task.health_check();
-
-    // To make sure the health check runs in the same mount namespace
-    // with the container, we wrap the original command in `docker exec`.
-    if (healthCheck.has_command()) {
-      // `docker exec` requires docker version greater than 1.3.0.
-      Try<Nothing> validateVersion =
-        docker->validateVersion(Version(1, 3, 0));
-
-      if (validateVersion.isError()) {
-        LOG(ERROR) << "Unable to launch health check process: "
-                   << validateVersion.error();
-        return;
-      }
-
-      // Wrap the original health check command in `docker exec`.
-      const CommandInfo& command = healthCheck.command();
-
-      vector<string> commandArguments;
-      commandArguments.push_back(docker->getPath());
-      commandArguments.push_back("exec");
-      commandArguments.push_back(containerName);
-
-      if (command.shell()) {
-        commandArguments.push_back("sh");
-        commandArguments.push_back("-c");
-        commandArguments.push_back("\"");
-        commandArguments.push_back(command.value());
-        commandArguments.push_back("\"");
-      } else {
-        commandArguments.push_back(command.value());
-
-        foreach (const string& argument, command.arguments()) {
-          commandArguments.push_back(argument);
+    vector<string> namespaces;
+#ifdef __linux__
+    if (task.health_check().type() == HealthCheck::COMMAND) {
+      // Make sure command health checks are run from the container's
+      // namespaces, which are supported by `ns::setns` and `ns::clone`.
+      //
+      // NOTE: The order of namespaces is significant, see `ns::clone`.
+      const string supported[] = {"cgroup", "ipc", "uts", "net", "mnt"};
+      const set<string> available = ns::namespaces();
+      foreach (const string &ns, supported) {
+        if (available.find(ns) != available.end()) {
+          namespaces.push_back(ns);
         }
       }
-
-      healthCheck.mutable_command()->set_shell(true);
-      healthCheck.mutable_command()->clear_arguments();
-      healthCheck.mutable_command()->set_value(
-          strings::join(" ", commandArguments));
-    }
-
-    vector<string> namespaces;
-    if (healthCheck.type() == HealthCheck::HTTP ||
-        healthCheck.type() == HealthCheck::TCP) {
+    } else {
       // Make sure HTTP and TCP health checks are run
       // from the container's network namespace.
       namespaces.push_back("net");
     }
+#endif
 
     Try<Owned<checks::HealthChecker>> _checker =
       checks::HealthChecker::create(
-          healthCheck,
+          task.health_check(),
           launcherDir,
           defer(self(), &Self::taskHealthUpdated, lambda::_1),
           task.task_id(),
