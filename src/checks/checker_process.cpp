@@ -107,7 +107,33 @@ static pid_t cloneWithSetns(
     const Option<pid_t>& taskPid,
     const vector<string>& namespaces)
 {
-  auto child = [=]() -> int {
+  int enterFlags = 0;
+  foreach (const string &ns, namespaces) {
+    Try<int> nstype = ns::nstype(ns);
+    if (nstype.isError()) {
+      LOG(WARNING) << "Failed to enter namespaces and clone: "
+                   << nstype.error();
+      return -1;
+    }
+
+    enterFlags |= nstype.get();
+  }
+
+  int cloneFlags = SIGCHLD; // Specify SIGCHLD as child termination signal.
+
+  Try<pid_t> pid = ns::clone(
+      taskPid.get(),
+      enterFlags,
+      func,
+      cloneFlags);
+  if (pid.isError()) {
+    LOG(WARNING) << "Failed to enter namespaces and clone: "
+                 << pid.error();
+    return -1;
+  }
+  return pid.get();
+
+  /*auto child = [=]() -> int {
     if (taskPid.isSome()) {
       foreach (const string& ns, namespaces) {
         Try<Nothing> setns = ns::setns(taskPid.get(), ns);
@@ -135,7 +161,7 @@ static pid_t cloneWithSetns(
   } else {
     // Parent.
     return pid;
-  }
+  }*/
 }
 #endif
 
