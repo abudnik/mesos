@@ -495,7 +495,7 @@ inline Try<pid_t> clone(
     // blocking here.
     int status;
     while (true) {
-      if (waitpid(child, &status, 0) == -1) {
+      if (waitpid(pid, &status, 0) == -1) {
         if (errno == EINTR) {
           continue;
         } else {
@@ -588,7 +588,7 @@ inline Try<pid_t> clone(
     //
     // TODO(benh): Don't do a fork if we're not actually entering the
     // PID namespace since the extra fork is unnecessary.
-    pid_t grandchild = os::clone(grandchildMain, SIGCHLD);
+    pid_t grandchild = os::clone(grandchildMain, CLONE_PARENT | SIGCHLD);
 
     if (grandchild < 0) {
       // TODO(benh): Exit with `errno` in order to capture `fork` error?
@@ -597,12 +597,13 @@ inline Try<pid_t> clone(
     } else if (grandchild > 0) {
       // Still the (first) child.
       ::close(sockets[1]);
+      _exit(EXIT_SUCCESS);
 
       // Need to reap the grandchild and then just exit since we're no
       // longer necessary. Technically when the grandchild exits it'll
       // be reaped but by doing a `waitpid` we can better propagate
       // back any errors that might have occurred with the grandchild.
-      int status;
+      /*int status;
       while (true) {
         if (waitpid(grandchild, &status, 0) == -1) {
           if (errno == EINTR) {
@@ -624,7 +625,7 @@ inline Try<pid_t> clone(
       }
 
       ASSERT(WIFSIGNALED(status));
-      raise(WTERMSIG(status));
+      raise(WTERMSIG(status));*/
     }
   }
   UNREACHABLE();
