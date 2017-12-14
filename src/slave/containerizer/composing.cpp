@@ -87,9 +87,12 @@ public:
   Future<Option<ContainerTermination>> wait(
       const ContainerID& containerId);
 
-  Future<bool> destroy(const ContainerID& containerId);
+  Future<Option<ContainerTermination>> destroy(
+      const ContainerID& containerId);
 
-  Future<bool> kill(const ContainerID& containerId, int signal);
+  Future<Option<ContainerTermination>> kill(
+      const ContainerID& containerId,
+      int signal);
 
   Future<hashset<ContainerID>> containers();
 
@@ -234,7 +237,8 @@ Future<Option<ContainerTermination>> ComposingContainerizer::wait(
 }
 
 
-Future<bool> ComposingContainerizer::destroy(const ContainerID& containerId)
+Future<Option<ContainerTermination>> ComposingContainerizer::destroy(
+    const ContainerID& containerId)
 {
   return dispatch(process,
                   &ComposingContainerizerProcess::destroy,
@@ -242,7 +246,7 @@ Future<bool> ComposingContainerizer::destroy(const ContainerID& containerId)
 }
 
 
-Future<bool> ComposingContainerizer::kill(
+Future<Option<mesos::slave::ContainerTermination>> ComposingContainerizer::kill(
     const ContainerID& containerId,
     int signal)
 {
@@ -602,7 +606,7 @@ Future<Option<ContainerTermination>> ComposingContainerizerProcess::wait(
 }
 
 
-Future<bool> ComposingContainerizerProcess::destroy(
+Future<Option<ContainerTermination>> ComposingContainerizerProcess::destroy(
     const ContainerID& containerId)
 {
   if (!containers_.contains(containerId)) {
@@ -611,7 +615,7 @@ Future<bool> ComposingContainerizerProcess::destroy(
     // Move this logging into the callers.
     LOG(WARNING) << "Attempted to destroy unknown container " << containerId;
 
-    return false;
+    return None();
   }
 
   Container* container = containers_.at(containerId);
@@ -643,10 +647,7 @@ Future<bool> ComposingContainerizerProcess::destroy(
       break;
   }
 
-  return container->termination.future()
-    .then([](const Option<ContainerTermination>& termination) {
-      return termination.isSome();
-    });
+  return container->termination.future();
 }
 
 
@@ -662,12 +663,11 @@ void ComposingContainerizerProcess::_destroy(
 }
 
 
-Future<bool> ComposingContainerizerProcess::kill(
-    const ContainerID& containerId,
-    int signal)
+Future<Option<mesos::slave::ContainerTermination>>
+ComposingContainerizerProcess::kill(const ContainerID& containerId, int signal)
 {
   if (!containers_.contains(containerId)) {
-    return false;
+    return None();
   }
 
   return containers_.at(containerId)->containerizer->kill(containerId, signal);

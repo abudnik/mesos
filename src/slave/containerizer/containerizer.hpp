@@ -135,17 +135,18 @@ public:
       const ContainerID& containerId) = 0;
 
   // Destroy a running container, killing all processes and releasing
-  // all resources. Returns false when the container cannot be found,
+  // all resources. Returns None when the container cannot be found,
   // or a failure if something went wrong.
   //
   // NOTE: You cannot wait() on containers that have been destroyed,
   // so you should always call wait() before destroy().
-  virtual process::Future<bool> destroy(const ContainerID& containerId) = 0;
+  virtual process::Future<Option<mesos::slave::ContainerTermination>> destroy(
+      const ContainerID& containerId) = 0;
 
-  // Sends a signal to a running container. Returns false when the container
+  // Sends a signal to a running container. Returns None when the container
   // cannot be found. The future may be failed if an error occurs in sending
   // the signal to the running container.
-  virtual process::Future<bool> kill(
+  virtual process::Future<Option<mesos::slave::ContainerTermination>> kill(
       const ContainerID& containerId,
       int signal)
   {

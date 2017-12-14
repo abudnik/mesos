@@ -2760,7 +2760,7 @@ Future<Response> Http::_launchContainer(
           << (launchResult.isFailed() ? launchResult.failure() : "discarded");
 
         slave->containerizer->destroy(containerId)
-          .onAny([=](const Future<bool>& destroy) {
+          .onAny([=](const Future<Option<ContainerTermination>>& destroy) {
             if (destroy.isReady()) {
               return;
             }
@@ -3054,11 +3054,12 @@ Future<Response> Http::_killContainer(
     }
   }
 
-  Future<bool> kill = slave->containerizer->kill(containerId, signal);
+  Future<Option<ContainerTermination>> kill =
+    slave->containerizer->kill(containerId, signal);
 
-  return kill
-    .then([containerId](bool found) -> Response {
-      if (!found) {
+  return kill.then(
+    [containerId](const Option<ContainerTermination>& termination) -> Response {
+      if (termination.isNone()) {
         return NotFound("Container '" + stringify(containerId) + "'"
                         " cannot be found (or is already killed)");
       }

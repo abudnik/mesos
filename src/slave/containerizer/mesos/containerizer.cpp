@@ -625,7 +625,8 @@ Future<Option<ContainerTermination>> MesosContainerizer::wait(
 }
 
 
-Future<bool> MesosContainerizer::destroy(const ContainerID& containerId)
+Future<Option<ContainerTermination>> MesosContainerizer::destroy(
+    const ContainerID& containerId)
 {
   return dispatch(process.get(),
                   &MesosContainerizerProcess::destroy,
@@ -634,7 +635,7 @@ Future<bool> MesosContainerizer::destroy(const ContainerID& containerId)
 }
 
 
-Future<bool> MesosContainerizer::kill(
+Future<Option<ContainerTermination>> MesosContainerizer::kill(
     const ContainerID& containerId,
     int signal)
 {
@@ -2311,7 +2312,7 @@ Future<ContainerStatus> MesosContainerizerProcess::status(
 }
 
 
-Future<bool> MesosContainerizerProcess::destroy(
+Future<Option<ContainerTermination>> MesosContainerizerProcess::destroy(
     const ContainerID& containerId,
     const Option<ContainerTermination>& termination)
 {
@@ -2334,7 +2335,7 @@ Future<bool> MesosContainerizerProcess::destroy(
     // Move this logging into the callers.
     LOG(WARNING) << "Attempted to destroy unknown container " << containerId;
 
-    return false;
+    return None();
   }
 
   const Owned<Container>& container = containers_.at(containerId);
@@ -2346,7 +2347,7 @@ Future<bool> MesosContainerizerProcess::destroy(
     // 'destroy()' call to affect future calls to 'wait()'. See more
     // details in MESOS-7926.
     return undiscardable(container->termination.future())
-      .then([]() { return true; });
+      .then(Option<ContainerTermination>::some);
   }
 
   LOG_BASED_ON_CLASS(container->containerClass())
@@ -2359,13 +2360,13 @@ Future<bool> MesosContainerizerProcess::destroy(
 
   transition(containerId, DESTROYING);
 
-  list<Future<bool>> destroys;
+  list<Future<Option<ContainerTermination>>> destroys;
   foreach (const ContainerID& child, container->children) {
     destroys.push_back(destroy(child, termination));
   }
 
-  await(destroys)
-    .then(defer(self(), [=](const list<Future<bool>>& futures) {
+  await(destroys).then(defer(
+    self(), [=](const list<Future<Option<ContainerTermination>>>& futures) {
       _destroy(containerId, termination, previousState, futures);
       return Nothing();
     }));
@@ -2376,7 +2377,7 @@ Future<bool> MesosContainerizerProcess::destroy(
   // to affect future calls to 'wait()'. See more details in
   // MESOS-7926.
   return undiscardable(container->termination.future())
-    .then([]() { return true; });
+    .then(Option<ContainerTermination>::some);
 }
 
 
@@ -2384,7 +2385,7 @@ void MesosContainerizerProcess::_destroy(
     const ContainerID& containerId,
     const Option<ContainerTermination>& termination,
     const State& previousState,
-    const list<Future<bool>>& destroys)
+    const list<Future<Option<ContainerTermination>>>& destroys)
 {
   CHECK(containers_.contains(containerId));
 
@@ -2393,7 +2394,7 @@ void MesosContainerizerProcess::_destroy(
   CHECK_EQ(container->state, DESTROYING);
 
   vector<string> errors;
-  foreach (const Future<bool>& future, destroys) {
+  foreach (const Future<Option<ContainerTermination>>& future, destroys) {
     if (!future.isReady()) {
       errors.push_back(future.isFailed()
         ? future.failure()
@@ -2671,14 +2672,14 @@ void MesosContainerizerProcess::______destroy(
 }
 
 
-Future<bool> MesosContainerizerProcess::kill(
+Future<Option<ContainerTermination>> MesosContainerizerProcess::kill(
     const ContainerID& containerId,
     int signal)
 {
   if (!containers_.contains(containerId)) {
     LOG(WARNING) << "Attempted to kill unknown container " << containerId;
 
-    return false;
+    return None();
   }
 
   const Owned<Container>& container = containers_.at(containerId);
@@ -2692,8 +2693,7 @@ Future<bool> MesosContainerizerProcess::kill(
     LOG(WARNING) << "Unable to find the pid for container " << containerId
                  << ", destroying it";
 
-    destroy(containerId, None());
-    return true;
+    return destroy(containerId, None());
   }
 
   int status = os::kill(container->pid.get(), signal);
@@ -2702,7 +2702,13 @@ Future<bool> MesosContainerizerProcess::kill(
                    os::strerror(errno));
   }
 
-  return true;
+  // NOTE: Use 'undiscardable' here to make sure discard from the
+  // caller does not propagate into 'termination.future()' which will
+  // be used in 'wait()'. We don't want a discard on 'destroy()' call
+  // to affect future calls to 'wait()'. See more details in
+  // MESOS-7926.
+  return undiscardable(container->termination.future())
+    .then(Option<ContainerTermination>::some);
 }
 
 
