@@ -300,6 +300,16 @@ Future<hashset<ContainerID>> LinuxLauncherProcess::recover(
     LOG(INFO) << "Recovered container " << container.id;
   }
 
+  {
+    ::sleep(2);
+
+    ContainerID id;
+    id.set_value("test");
+    Container container;
+    container.id = id;
+    containers.put(id, container);
+  }
+
   // Now loop through the containers expected by ContainerState so we
   // can have a complete list of the containers we might ever want to
   // destroy as well as be able to determine orphans below.

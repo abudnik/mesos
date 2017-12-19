@@ -2477,6 +2477,9 @@ void MesosContainerizerProcess::__destroy(
 {
   CHECK(containers_.contains(containerId));
 
+  LOG(INFO) << "__destroy";
+  ::sleep(2);
+
   // Kill all processes then continue destruction.
   launcher->destroy(containerId)
     .onAny(defer(
