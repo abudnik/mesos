@@ -296,6 +296,7 @@ static Try<Nothing> create(
     bool recursive)
 {
   string path = path::join(hierarchy, cgroup);
+  LOG(INFO) << "!! cgroups::create " << path;
   Try<Nothing> mkdir = os::mkdir(path, recursive);
   if (mkdir.isError()) {
     return Error(
@@ -458,6 +459,9 @@ Try<string> prepare(
     }
   }
 
+  static int test_cnt = 0;
+  ++test_cnt;
+
   // Test for nested cgroup support.
   // TODO(jieyu): Consider doing this test only once.
   const string& testCgroup = path::join(cgroup, "test");
@@ -479,13 +483,20 @@ Try<string> prepare(
           "Your kernel might be too old to support nested cgroup: " +
           create.error());
     }
+
+    LOG(INFO) << "!! created cgroup test " << test_cnt;
+  } else {
+    LOG(INFO) << "!! reusing cgroup test " << test_cnt;
   }
 
   // Remove the nested 'test' cgroup.
   Try<Nothing> remove = cgroups::remove(hierarchy.get(), testCgroup);
   if (remove.isError()) {
+    LOG(ERROR) << "!! failed to remove test " << test_cnt;
     return Error("Failed to remove the nested test cgroup: " + remove.error());
   }
+
+  LOG(INFO) << "!! removed cgroup tests " << test_cnt;
 
   return hierarchy.get();
 }
