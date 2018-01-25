@@ -384,6 +384,40 @@ static Try<Nothing> write(
 } // namespace internal {
 
 
+// Returns some error string if a nested cgroup is not supported by the kernel.
+static Option<Error> testNestedCgroupSupport(
+    const string& hierarchy,
+    const string& testCgroup)
+{
+  // Create a nested test cgroup if it doesn't exist.
+  Try<bool> exists = cgroups::exists(hierarchy, testCgroup);
+  if (exists.isError()) {
+    return Error(
+        "Failed to check existence of the nested test cgroup " +
+        path::join(hierarchy, testCgroup) +
+        ": " + exists.error());
+  }
+
+  if (!exists.get()) {
+    // Make sure this kernel supports creating nested cgroups.
+    Try<Nothing> create = cgroups::create(hierarchy, testCgroup);
+    if (create.isError()) {
+      return Error(
+          "Your kernel might be too old to support nested cgroup: " +
+          create.error());
+    }
+  }
+
+  // Remove the nested 'test' cgroup.
+  Try<Nothing> remove = cgroups::remove(hierarchy, testCgroup);
+  if (remove.isError()) {
+    return Error("Failed to remove the nested test cgroup: " + remove.error());
+  }
+
+  return None();
+}
+
+
 Try<string> prepare(
     const string& baseHierarchy,
     const string& subsystem,
@@ -458,33 +492,29 @@ Try<string> prepare(
     }
   }
 
-  // Test for nested cgroup support.
-  // TODO(jieyu): Consider doing this test only once.
+  // Test for nested cgroup support. We avoid to redundantly test cgroup support
+  // for the given cgroup by storing the result in the hashmap for the future
+  // use.
+  //
+  // NOTE: Mutex is required in case of concurrent invocation of this function,
+  // e.g. it might be called simultaneously in tests, when multiple instances of
+  // agent are launched.
+  static std::mutex mutex;
+  static hashmap<string, Option<Error>> nestedCgroupSupported;
+
   const string& testCgroup = path::join(cgroup, "test");
 
-  // Create a nested test cgroup if it doesn't exist.
-  exists = cgroups::exists(hierarchy.get(), testCgroup);
-  if (exists.isError()) {
-    return Error(
-        "Failed to check existence of the nested test cgroup " +
-        path::join(hierarchy.get(), testCgroup) +
-        ": " + exists.error());
-  }
-
-  if (!exists.get()) {
-    // Make sure this kernel supports creating nested cgroups.
-    Try<Nothing> create = cgroups::create(hierarchy.get(), testCgroup);
-    if (create.isError()) {
-      return Error(
-          "Your kernel might be too old to support nested cgroup: " +
-          create.error());
+  synchronized (mutex) {
+    if (!nestedCgroupSupported.contains(testCgroup)) {
+      nestedCgroupSupported[testCgroup] =
+        testNestedCgroupSupport(hierarchy.get(), testCgroup);
     }
-  }
 
-  // Remove the nested 'test' cgroup.
-  Try<Nothing> remove = cgroups::remove(hierarchy.get(), testCgroup);
-  if (remove.isError()) {
-    return Error("Failed to remove the nested test cgroup: " + remove.error());
+    const Option<Error>& error = nestedCgroupSupported[testCgroup];
+
+    if (error.isSome()) {
+      return error.get();
+    }
   }
 
   return hierarchy.get();
