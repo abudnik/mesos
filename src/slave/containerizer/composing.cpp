@@ -355,7 +355,12 @@ Future<Containerizer::LaunchResult> ComposingContainerizerProcess::_launch(
       // This is needed for eventually removing the given container from
       // the list of active containers.
       container->containerizer->wait(containerId)
-        .onAny(defer(self(), &Self::destroy, containerId));
+        .onAny(defer(self(), [=](const Future<Option<ContainerTermination>>&) {
+          if (containers_.contains(containerId)) {
+            delete containers_.at(containerId);
+            containers_.erase(containerId);
+          }
+        }));
     }
 
     // Note that the return value is not impacted
@@ -493,7 +498,12 @@ Future<Containerizer::LaunchResult> ComposingContainerizerProcess::_launch(
       // This is needed for eventually removing the given container from
       // the list of active containers.
       container->containerizer->wait(containerId)
-        .onAny(defer(self(), &Self::destroy, containerId));
+        .onAny(defer(self(), [=](const Future<Option<ContainerTermination>>&) {
+          if (containers_.contains(containerId)) {
+            delete containers_.at(containerId);
+            containers_.erase(containerId);
+          }
+        }));
     }
 
     // Note that the return value is not impacted
@@ -599,7 +609,13 @@ Future<Option<ContainerTermination>> ComposingContainerizerProcess::destroy(
     case LAUNCHED:
       container->state = DESTROYING;
 
-      return container->containerizer->destroy(containerId);
+      return container->containerizer->destroy(containerId)
+        .onAny(defer(self(), [=](const Future<Option<ContainerTermination>>&) {
+          if (containers_.contains(containerId)) {
+            delete containers_.at(containerId);
+            containers_.erase(containerId);
+          }
+        }));
   }
 
   return container->containerizer->wait(containerId);
