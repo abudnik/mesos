@@ -1230,8 +1230,11 @@ bool initialize(
   authenticator_manager = new AuthenticatorManager();
 
   // Create the global reaper process.
-  process::internal::reaper =
-    spawn(new process::internal::ReaperProcess(), true);
+  auto reaper = new process::internal::ReaperProcess();
+
+  process::internal::reaper = spawn(reaper, true);
+
+  reaper->start();
 
   // Create the global job object manager process.
 #ifdef __WINDOWS__

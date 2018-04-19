@@ -23,6 +23,8 @@
 #include <stout/option.hpp>
 #include <stout/result.hpp>
 
+#include <thread>
+
 namespace process {
 
 // The upper bound for the poll interval in the reaper.
@@ -37,8 +39,12 @@ public:
 
   Future<Option<int>> reap(pid_t pid);
 
+  Future<std::set<pid_t>> pids();
+
+  void start();
+
 protected:
-  virtual void initialize();
+  virtual void finalize();
 
   void wait();
 
@@ -48,6 +54,8 @@ private:
   const Duration interval();
 
   multihashmap<pid_t, Owned<Promise<Option<int>>>> promises;
+  std::thread worker_thread;
+  std::atomic_bool terminated;
 };
 
 

@@ -63,7 +63,10 @@ Duration MAX_REAP_INTERVAL() { return Seconds(1); }
 
 namespace internal {
 
-ReaperProcess::ReaperProcess() : ProcessBase(ID::generate("__reaper__")) {}
+ReaperProcess::ReaperProcess() :
+ProcessBase(ID::generate("__reaper__")),
+terminated(false)
+{}
 
 
 Future<Option<int>> ReaperProcess::reap(pid_t pid)
@@ -79,9 +82,50 @@ Future<Option<int>> ReaperProcess::reap(pid_t pid)
 }
 
 
-void ReaperProcess::initialize()
+Future<std::set<pid_t>> ReaperProcess::pids()
 {
-  wait();
+  return promises.keys();
+}
+
+
+void ReaperProcess::start()
+{
+  worker_thread = std::thread([=]() {
+      while (!terminated) {
+        auto pids = dispatch(internal::reaper, &internal::ReaperProcess::pids);
+        pids.await();
+        if (!pids.isReady()) {
+          break;
+        }
+
+        foreach (pid_t pid, pids.get()) {
+          int status;
+          Result<pid_t> child_pid = os::waitpid(pid, &status, WNOHANG);
+          if (child_pid.isSome()) {
+            // We have reaped a child.
+            dispatch(internal::reaper,
+                &internal::ReaperProcess::notify,
+                pid,
+                status);
+          } else if (!os::exists(pid)) {
+            // The process no longer exists and has been reaped by someone else.
+            dispatch(internal::reaper,
+                &internal::ReaperProcess::notify,
+                pid,
+                None());
+          }
+        }
+
+        os::sleep(Seconds(1)); // TODO(abudnik): use `ReaperProcess::interval()`
+      }
+  });
+}
+
+
+void ReaperProcess::finalize()
+{
+  terminated = true;
+  worker_thread.join();
 }
 
 
