@@ -7070,11 +7070,18 @@ void Master::__reregisterSlave(
           ? "Unreachable agent re-reregistered"
           : "Unknown agent reregistered";
 
+      // Send the task's status update state if any as is done consistently
+      // for master-generated updates. This is to make sure that the
+      // scheduler is notified about task state transitions in order.
+      const TaskState& state = task.has_status_update_state()
+          ? task.status_update_state()
+          : task.state();
+
       const StatusUpdate& update = protobuf::createStatusUpdate(
           task.framework_id(),
           task.slave_id(),
           task.task_id(),
-          task.state(),
+          state,
           TaskStatus::SOURCE_MASTER,
           None(),
           message,
