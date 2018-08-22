@@ -1042,6 +1042,7 @@ private:
   // for proper erase semantics later on.
   list<HttpConnection> outputConnections;
   Option<Failure> failure;
+  Promise<http::Response> inputResponsePromise;
 };
 
 
@@ -1263,7 +1264,9 @@ Future<Nothing> IOSwitchboardServerProcess::run()
         .then(defer(self(), [this]() {
           redirectFinished = true;
 
-          if (!inputConnected) {
+          if (inputConnected) {
+            inputResponsePromise.set(http::OK());
+          } else {
             terminate(self(), false);
           }
           return Nothing();
@@ -1613,7 +1616,7 @@ Future<http::Response> IOSwitchboardServerProcess::attachContainerInput(
 
   // Loop through each record and process it. Return a proper
   // response once the last record has been fully processed.
-  return loop(
+  auto readLoop = loop(
       self(),
       [=]() {
         return reader->read();
@@ -1704,22 +1707,28 @@ Future<http::Response> IOSwitchboardServerProcess::attachContainerInput(
             UNREACHABLE();
           }
         }
-      })
-    // We explicitly specify the return type to avoid a type deduction
-    // issue in some versions of clang. See MESOS-2943.
-    .then(defer(self(), [=](const http::Response& response) -> http::Response {
-      // Reset `inputConnected` to allow future input connections.
-      inputConnected = false;
+      });
 
-      // If IO redirects are finished or writing to `stdin` failed we want
-      // to terminate ourselves (after flushing any outstanding messages
-      // from our message queue).
-      if (redirectFinished || failure.isSome()) {
-        terminate(self(), false);
-      }
+  readLoop.onAny(defer(self(), [=](const Future<http::Response>& response) {
+    inputResponsePromise.set(response);
+  }));
 
-      return response;
-    }));
+  // We explicitly specify the return type to avoid a type deduction
+  // issue in some versions of clang. See MESOS-2943.
+  return inputResponsePromise.future().then(
+      defer(self(), [=](const http::Response& response) -> http::Response {
+        // Reset `inputConnected` to allow future input connections.
+        inputConnected = false;
+
+        // If IO redirects are finished or writing to `stdin` failed we want
+        // to terminate ourselves (after flushing any outstanding messages
+        // from our message queue).
+        if (redirectFinished || failure.isSome()) {
+          terminate(self(), false);
+        }
+
+        return response;
+      }));
 }
 
 
