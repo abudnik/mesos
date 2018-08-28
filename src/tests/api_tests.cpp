@@ -6432,7 +6432,7 @@ TEST_P_TEMP_DISABLED_ON_WINDOWS(
 // TODO(abudnik): The test is flaky due to MESOS-8545 and hence disabled.
 TEST_P_TEMP_DISABLED_ON_WINDOWS(
     AgentAPITest,
-    DISABLED_ROOT_CGROUPS_LaunchNestedContainerSessionsInParallel)
+    ROOT_CGROUPS_LaunchNestedContainerSessionsInParallel)
 {
   const int numContainers = 10;
 
