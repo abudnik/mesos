@@ -28,6 +28,7 @@
 #include <stout/foreach.hpp>
 #include <stout/lambda.hpp>
 #include <stout/option.hpp>
+#include <stout/os.hpp>
 #include <stout/result.hpp>
 #include <stout/try.hpp>
 
@@ -286,6 +287,22 @@ JNIEXPORT void JNICALL Java_org_apache_mesos_v1_scheduler_V1Mesos_send
   }
 
   mesos->mesos->send(call);
+
+  // Destruction of the library is not always under our control. For example,
+  // the JVM can call JNI `finalize()` if the Java scheduler nullifies its
+  // reference to the V1Mesos library immediately after sending `TEARDOWN`,
+  // see MESOS-9274.
+  //
+  // We want to make sure that the `TEARDOWN` message is sent before the
+  // scheduler and the Mesos library are destructed (garbage collected).
+  // Without a flavour of `Mesos::send()` that blocks or returns a future,
+  // there is no better way than a hacky `sleep()`. This approach is foul
+  // because:
+  //   * it does not guarantee that 30s is enough and `TEARDOWN` is sent;
+  //   * it blocks the caller for 30s regardless of how long sending takes.
+  if (call.type() == Call::TEARDOWN) {
+    os::sleep(Seconds(30));
+  }
 }
 
 
