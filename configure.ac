@@ -1270,23 +1270,13 @@ if test "x$enable_java" = "xyes"; then
   # installation rather than a JRE installation.
   if test -z "$JAVA_HOME"; then
     AC_PATH_PROG([JAVAC], [javac], [$JAVAC])
-    AC_PATH_PROG([JAVA], [java], [$JAVA])
 
-    if test "x$JAVA" = "x" || test "x$JAVAC" = "x"; then
+    if test "x$JAVAC" = "x"; then
       AC_MSG_ERROR([cannot guess JAVA_HOME (no 'java' or 'javac' found)])
     fi
 
-    AC_MSG_CHECKING([value of Java system property 'java.home'])
-    cat <<__EOF__ >conftest.java [
-public class conftest {
-  public static void main(String[] args) {
-    System.out.print(System.getProperty("java.home"));
-  }
-}]
-__EOF__
-
-    # Now build and run the code.
-    $JAVAC conftest.java && JAVA_DOT_HOME="`$JAVA -cp . conftest`"
+    # Try to extract the absolute path of the JDK from `javac`.
+    JAVA_DOT_HOME="`type -p javac|xargs readlink -f|xargs dirname|xargs dirname`"
 
     if test $? = 0 && test ! -z "$JAVA_DOT_HOME"; then
       AC_MSG_RESULT($JAVA_DOT_HOME)
@@ -1294,9 +1284,6 @@ __EOF__
       JAVA_DOT_HOME=""
       AC_MSG_RESULT([not found])
     fi
-
-    # Clean up after ourselves.
-    rm -f conftest.java conftest.class
 
     # Check if 'java.home' looks like a JDK installation, or if
     # 'java.home'/.. looks like a JDK installation (e.g., Linux).
