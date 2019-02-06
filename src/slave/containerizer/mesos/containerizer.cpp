@@ -48,9 +48,9 @@
 
 #include "hook/manager.hpp"
 
-#ifdef __linux__
+#ifdef ENABLE_LAUNCHER_SEALING
 #include "linux/memfd.hpp"
-#endif // __linux__
+#endif // ENABLE_LAUNCHER_SEALING
 
 #include "module/manager.hpp"
 
@@ -480,7 +480,7 @@ Try<MesosContainerizer*> MesosContainerizer::create(
 
   Option<int_fd> initMemFd;
 
-#ifdef __linux__
+#ifdef ENABLE_LAUNCHER_SEALING
   // Clone the launcher binary in memory for security concerns.
   Try<int_fd> memFd = memfd::cloneSealedFile(
       path::join(flags.launcher_dir, MESOS_CONTAINERIZER));
@@ -493,7 +493,7 @@ Try<MesosContainerizer*> MesosContainerizer::create(
   }
 
   initMemFd = memFd.get();
-#endif // __linux__
+#endif // ENABLE_LAUNCHER_SEALING
 
   return new MesosContainerizer(Owned<MesosContainerizerProcess>(
       new MesosContainerizerProcess(
