@@ -873,11 +873,16 @@ int MesosContainerizerLaunch::execute()
       // because exec below might exec a memfd.
       int flags = ::fcntl(fd, F_GETFD);
       if (flags == -1) {
-        cerr << "Failed to get FD flags";
-        os::close(fd);
+        // Skip invalid file descriptors. Note, that the issue with leaked file
+        // descriptors is fixed in the recent versions (1.7.x and newer), but
+        // not backported due to major changes made.
+        if (EBADF != errno) {
+          cerr << "Failed to get FD flags: " << os::strerror(errno) << endl;
+          ::close(fd);
+        }
       } else if (::fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1) {
-        cerr << "Failed to set FD_CLOEXEC";
-        os::close(fd);
+        cerr << "Failed to set FD_CLOEXEC: " << os::strerror(errno) << endl;
+        ::close(fd);
       }
     }
   }
