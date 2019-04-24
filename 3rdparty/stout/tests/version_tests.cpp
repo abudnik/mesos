@@ -174,7 +174,7 @@ TEST(VersionTest, ParseInvalid)
     "1.1.2+exp;",
     "-foo",
     "+foo",
-    u8"1.0.0-b\u00e9ta"
+    "1.0.0-b\xC3\xA9ta" // "\xC3\xA9" is U+00E9 encoded in UTF-8
   };
 
   foreach (const string& input, inputs) {
