@@ -538,6 +538,8 @@ Try<MesosContainerizer*> MesosContainerizer::create(
       cgroupsIsolatorCreated = true;
     }
 
+    LOG(INFO) << "!! ISOLATOR (loop 1): " << creator.first;
+
     Try<Isolator*> isolator = creator.second(flags);
     if (isolator.isError()) {
       return Error("Failed to create isolator '" + creator.first + "': " +
@@ -556,6 +558,8 @@ Try<MesosContainerizer*> MesosContainerizer::create(
         return Error("Failed to create isolator '" + name + "': " +
                     isolator.error());
       }
+
+      LOG(INFO) << "!! ISOLATOR (loop 2): " << name;
 
       isolators.push_back(Owned<Isolator>(isolator.get()));
       continue;
