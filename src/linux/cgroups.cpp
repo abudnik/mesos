@@ -1610,6 +1610,7 @@ static Future<Nothing> _destroy(
   Future<Nothing> _future = promise->future();
 
   future.discard();
+  future.onDiscard(lambda::bind(&__destroy, future, promise, timeout));
   future.onAny(lambda::bind(&__destroy, lambda::_1, promise, timeout));
 
   return _future;
