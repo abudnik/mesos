@@ -170,7 +170,7 @@ def _create_module(module_name):
     )
 
     if '@ENABLE_SECCOMP_ISOLATOR_TRUE@' == '':
-        libseccomp = os.path.join('3rdparty', 'libseccomp-2.3.3')
+        libseccomp = os.path.join('3rdparty', 'libseccomp-2.4.3')
         libseccomp = os.path.join(
             abs_top_builddir, libseccomp, 'src', '.libs', 'libseccomp.a')
         EXTRA_OBJECTS += _cond_extra_object(
